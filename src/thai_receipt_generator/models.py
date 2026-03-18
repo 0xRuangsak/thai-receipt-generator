@@ -5,6 +5,11 @@ from decimal import Decimal
 from enum import Enum
 
 
+class ItemType(Enum):
+    PRODUCT = "product"
+    SERVICE = "service"
+
+
 class DiscountType(Enum):
     NONE = "none"
     ABSOLUTE = "absolute"
@@ -20,6 +25,7 @@ class Discount:
 @dataclass
 class LineItem:
     name: str
+    item_type: ItemType = ItemType.PRODUCT
     quantity: int = 1
     unit_price: Decimal = Decimal("0")
     has_vat: bool = False

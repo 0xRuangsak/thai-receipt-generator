@@ -9,6 +9,7 @@ from typing import Iterator
 from .models import (
     Discount,
     DiscountType,
+    ItemType,
     LineItem,
     ReceiptConfig,
     StandaloneDiscount,
@@ -106,10 +107,11 @@ SAMPLE_GOODS = [(n, p) for n, p, s in SAMPLE_PRODUCTS if not s]
 
 
 def _make_line_item(
-    profile: ItemProfile, idx: int, rng: random.Random
+    profile: ItemProfile, idx: int, rng: random.Random, force_service: bool = False,
 ) -> LineItem:
     # WHT only applies to services — pick from the right pool
-    if profile.has_wht:
+    is_service = profile.has_wht or force_service
+    if is_service:
         pool = SAMPLE_SERVICES
     else:
         pool = SAMPLE_GOODS
@@ -118,6 +120,7 @@ def _make_line_item(
     gross = price * qty
     return LineItem(
         name=name,
+        item_type=ItemType.SERVICE if is_service else ItemType.PRODUCT,
         quantity=qty,
         unit_price=price,
         has_vat=profile.has_vat,
@@ -182,7 +185,7 @@ def generate(spec: CombinatorSpec) -> Iterator[ReceiptConfig]:
 
     for item_count, profile_combo, sd_count, overall_disc, overall_vat, overall_wht, template in all_combos:
         items = [
-            _make_line_item(profile_combo[i], i, rng)
+            _make_line_item(profile_combo[i], i, rng, force_service=overall_wht)
             for i in range(item_count)
         ]
 

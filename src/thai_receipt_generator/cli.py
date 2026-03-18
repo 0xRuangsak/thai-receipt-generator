@@ -12,6 +12,7 @@ from .combinator import CombinatorSpec, count_combinations, generate
 from .models import (
     Discount,
     DiscountType,
+    ItemType,
     LineItem,
     ReceiptConfig,
     StandaloneDiscount,
@@ -36,6 +37,7 @@ def _config_to_dict(cfg: ReceiptConfig) -> dict:
     for item in cfg.items:
         entry: dict = {
             "name": item.name,
+            "type": item.item_type.value,
             "quantity": item.quantity,
             "unit_price": float(item.unit_price),
         }
@@ -86,6 +88,7 @@ def _parse_config(data: dict) -> ReceiptConfig:
     for item in data.get("items", []):
         items.append(LineItem(
             name=item["name"],
+            item_type=ItemType(item.get("type", "product")),
             quantity=item.get("quantity", 1),
             unit_price=Decimal(str(item["unit_price"])),
             has_vat=item.get("has_vat", False),
