@@ -7,7 +7,7 @@ from pathlib import Path
 from jinja2 import Environment, PackageLoader
 from playwright.async_api import async_playwright
 
-from .models import ReceiptCalculation
+from .models import CalculatedLineItem, ReceiptCalculation, StandaloneDiscount
 
 FONT_PATH = Path(__file__).resolve().parent.parent.parent / "fonts" / "NotoSansThai.ttf"
 
@@ -26,6 +26,8 @@ def _build_jinja_env() -> Environment:
         autoescape=False,
     )
     env.filters["float"] = float
+    env.tests["line_item"] = lambda x: isinstance(x, CalculatedLineItem)
+    env.tests["standalone_discount"] = lambda x: isinstance(x, StandaloneDiscount)
     return env
 
 

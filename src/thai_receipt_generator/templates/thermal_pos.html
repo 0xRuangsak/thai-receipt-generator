@@ -82,33 +82,33 @@ body {
 </div>
 <hr class="divider">
 
-{% for ci in receipt.calculated_items %}
+{% for row in receipt.rows %}
+{% if row is line_item %}
 <div class="item-row">
-    <span class="name">{{ ci.source.name }}</span>
-    <span class="amount">{{ thai_currency(ci.net_amount) }}</span>
+    <span class="name">{{ row.source.name }}</span>
+    <span class="amount">{{ thai_currency(row.net_amount) }}</span>
 </div>
-{% if ci.source.quantity > 1 %}
-<div class="item-detail">{{ ci.source.quantity }} x {{ thai_currency(ci.source.unit_price) }}</div>
+{% if row.source.quantity > 1 %}
+<div class="item-detail">{{ row.source.quantity }} x {{ thai_currency(row.source.unit_price) }}</div>
 {% endif %}
-{% if ci.discount_amount > 0 %}
+{% if row.discount_amount > 0 %}
 <div class="item-detail discount-text">
     ส่วนลด:
-    {% if ci.source.discount.type.value == 'percentage' %}{{ ci.source.discount.value }}%{% else %}-{{ thai_currency(ci.discount_amount) }}{% endif %}
+    {% if row.source.discount.type.value == 'percentage' %}{{ row.source.discount.value }}%{% else %}-{{ thai_currency(row.discount_amount) }}{% endif %}
 </div>
 {% endif %}
-{% if ci.source.has_vat %}
-<div class="item-detail">VAT: {{ thai_currency(ci.vat_amount) }}</div>
+{% if row.source.has_vat %}
+<div class="item-detail">VAT: {{ thai_currency(row.vat_amount) }}</div>
 {% endif %}
-{% if ci.source.has_wht %}
-<div class="item-detail wht-text">WHT: {{ thai_currency(ci.wht_amount) }}</div>
+{% if row.source.has_wht %}
+<div class="item-detail wht-text">WHT: {{ thai_currency(row.wht_amount) }}</div>
 {% endif %}
-{% endfor %}
-
-{% for sd in receipt.standalone_discounts %}
+{% elif row is standalone_discount %}
 <div class="item-row discount-text">
-    <span class="name">{{ sd.name }}</span>
-    <span class="amount">({{ thai_currency(sd.amount) }})</span>
+    <span class="name">{{ row.name }}</span>
+    <span class="amount">({{ thai_currency(row.amount) }})</span>
 </div>
+{% endif %}
 {% endfor %}
 
 <hr class="divider">

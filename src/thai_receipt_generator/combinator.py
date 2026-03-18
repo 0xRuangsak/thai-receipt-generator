@@ -36,12 +36,11 @@ SAMPLE_PRODUCTS: list[tuple[str, Decimal, bool]] = [
     ("สมุด A4 5 เล่ม", Decimal("75.00"), False),
 ]
 
-SAMPLE_STANDALONE_DISCOUNTS: list[tuple[str, Decimal]] = [
-    ("ส่วนลด", Decimal("50.00")),
-    ("ส่วนลดพิเศษ", Decimal("100.00")),
-    ("ส่วนลดลูกค้าใหม่", Decimal("200.00")),
-    ("ส่วนลดไก่ทอด", Decimal("20.00")),
-    ("คูปองส่วนลด", Decimal("150.00")),
+GENERIC_DISCOUNT_NAMES: list[str] = [
+    "ส่วนลด",
+    "ส่วนลดพิเศษ",
+    "ส่วนลดลูกค้าใหม่",
+    "คูปองส่วนลด",
 ]
 
 
@@ -179,9 +178,26 @@ def generate(spec: CombinatorSpec) -> Iterator[ReceiptConfig]:
         ]
 
         standalone_discounts = []
-        for j in range(sd_count):
-            name, amount = SAMPLE_STANDALONE_DISCOUNTS[j % len(SAMPLE_STANDALONE_DISCOUNTS)]
-            standalone_discounts.append(StandaloneDiscount(name=name, amount=amount))
+        for _ in range(sd_count):
+            # Pick generic or item-specific discount
+            if rng.random() < 0.5 and items:
+                # Item-specific: reference an actual item on this receipt
+                target_idx = rng.randrange(len(items))
+                target = items[target_idx]
+                short_name = target.name.split()[0]
+                name = f"ส่วนลด{short_name}"
+                max_amt = target.unit_price
+                # Position: right after the referenced item, or at end
+                position = rng.choice([target_idx + 1, -1])
+            else:
+                # Generic discount
+                name = rng.choice(GENERIC_DISCOUNT_NAMES)
+                max_amt = Decimal("200")
+                # Position: anywhere among items, or at end
+                position = rng.choice([*range(item_count + 1), -1])
+            amount = Decimal(str(rng.choice([10, 20, 50, 100])))
+            amount = min(amount, max_amt)
+            standalone_discounts.append(StandaloneDiscount(name=name, amount=amount, position=position))
 
         yield ReceiptConfig(
             items=items,

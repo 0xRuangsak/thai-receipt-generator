@@ -102,25 +102,26 @@ table.items td {
     </tr>
 </thead>
 <tbody>
-    {% for ci in receipt.calculated_items %}
+    {% for row in receipt.rows %}
+    {% if row is line_item %}
     <tr>
-        <td>{{ ci.source.name }}</td>
-        <td class="center">{{ ci.source.quantity }}</td>
-        <td class="right">{{ thai_currency(ci.source.unit_price) }}</td>
+        <td>{{ row.source.name }}</td>
+        <td class="center">{{ row.source.quantity }}</td>
+        <td class="right">{{ thai_currency(row.source.unit_price) }}</td>
         <td class="right">
-            {% if ci.discount_amount > 0 %}
-                {% if ci.source.discount.type.value == 'percentage' %}{{ ci.source.discount.value }}%{% else %}{{ thai_currency(ci.discount_amount) }}{% endif %}
+            {% if row.discount_amount > 0 %}
+                {% if row.source.discount.type.value == 'percentage' %}{{ row.source.discount.value }}%{% else %}{{ thai_currency(row.discount_amount) }}{% endif %}
             {% else %}-{% endif %}
         </td>
-        <td class="right">{{ thai_currency(ci.net_amount) }}</td>
+        <td class="right">{{ thai_currency(row.net_amount) }}</td>
     </tr>
-    {% endfor %}
-    {% for sd in receipt.standalone_discounts %}
+    {% elif row is standalone_discount %}
     <tr class="discount-row">
-        <td>{{ sd.name }}</td>
+        <td>{{ row.name }}</td>
         <td colspan="3"></td>
-        <td class="right discount-amount">({{ thai_currency(sd.amount) }})</td>
+        <td class="right discount-amount">({{ thai_currency(row.amount) }})</td>
     </tr>
+    {% endif %}
     {% endfor %}
 </tbody>
 </table>

@@ -135,11 +135,14 @@ table.items .right { text-align: right; }
     </tr>
 </thead>
 <tbody>
-    {% for calc_item in receipt.calculated_items %}
-        {{ line_item_row(loop.index, calc_item, show_vat, show_wht) }}
-    {% endfor %}
-    {% for sd in receipt.standalone_discounts %}
-        {{ standalone_discount_row(sd, base_cols + extra_cols - 2) }}
+    {% set item_num = namespace(val=0) %}
+    {% for row in receipt.rows %}
+        {% if row is line_item %}
+            {% set item_num.val = item_num.val + 1 %}
+            {{ line_item_row(item_num.val, row, show_vat, show_wht) }}
+        {% elif row is standalone_discount %}
+            {{ standalone_discount_row(row, base_cols + extra_cols - 2) }}
+        {% endif %}
     {% endfor %}
 </tbody>
 </table>

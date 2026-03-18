@@ -1,0 +1,28 @@
+{
+  "template": "formal_invoice",
+  "items": [
+    {
+      "name": "ค่าออกแบบโลโก้",
+      "quantity": 1,
+      "unit_price": 5000
+    },
+    {
+      "name": "ค่าที่ปรึกษาธุรกิจ",
+      "quantity": 1,
+      "unit_price": 10000,
+      "has_wht": true,
+      "wht_rate": 3
+    },
+    {
+      "name": "กาแฟเย็น",
+      "quantity": 2,
+      "unit_price": 45,
+      "discount": { "type": "percentage", "value": 10 }
+    }
+  ],
+  "standalone_discounts": [
+    { "name": "ส่วนลดโลโก้", "amount": 500, "position": 1 },
+    { "name": "คูปองส่วนลด", "amount": 100 }
+  ],
+  "overall_vat": true
+}

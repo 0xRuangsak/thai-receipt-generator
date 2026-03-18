@@ -1,5 +1,6 @@
 .env
 output/
+generated_json/
 __pycache__/
 *.pyc
 *.egg-info/

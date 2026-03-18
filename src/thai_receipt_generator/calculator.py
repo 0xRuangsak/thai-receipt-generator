@@ -9,6 +9,8 @@ from .models import (
     LineItem,
     ReceiptCalculation,
     ReceiptConfig,
+    ReceiptRow,
+    StandaloneDiscount,
 )
 
 TWO_PLACES = Decimal("0.01")
@@ -78,10 +80,30 @@ def calculate(config: ReceiptConfig) -> ReceiptCalculation:
     total_wht = per_item_wht_total + overall_wht
     grand_total = after_overall_discount + total_vat - total_wht
 
+    # Build interleaved row list: items + standalone discounts in display order
+    rows: list[ReceiptRow] = []
+    sd_by_pos: dict[int, list[StandaloneDiscount]] = {}
+    end_sds: list[StandaloneDiscount] = []
+    for sd in config.standalone_discounts:
+        if sd.position < 0 or sd.position >= len(calculated_items):
+            end_sds.append(sd)
+        else:
+            sd_by_pos.setdefault(sd.position, []).append(sd)
+
+    for i, ci in enumerate(calculated_items):
+        # Insert standalone discounts positioned before this item
+        for sd in sd_by_pos.get(i, []):
+            rows.append(sd)
+        rows.append(ci)
+    # Standalone discounts positioned after all items
+    for sd in end_sds:
+        rows.append(sd)
+
     return ReceiptCalculation(
         config=config,
         calculated_items=calculated_items,
         standalone_discounts=list(config.standalone_discounts),
+        rows=rows,
         subtotal=subtotal,
         standalone_discount_total=standalone_discount_total,
         after_standalone=after_standalone,

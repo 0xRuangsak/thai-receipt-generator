@@ -30,9 +30,14 @@ class LineItem:
 
 @dataclass
 class StandaloneDiscount:
-    """A discount row with no quantity/unit price. Always absolute value."""
+    """A discount row with no quantity/unit price. Always absolute value.
+
+    position: index in the row list where this discount appears
+              (e.g. 1 = after the first item, 3 = after three rows)
+    """
     name: str = "ส่วนลด"
     amount: Decimal = Decimal("0")
+    position: int = -1  # -1 = at the end
 
 
 @dataclass
@@ -62,12 +67,17 @@ class CalculatedLineItem:
     wht_amount: Decimal
 
 
+# A row in the rendered receipt: either a calculated item or a standalone discount
+ReceiptRow = CalculatedLineItem | StandaloneDiscount
+
+
 @dataclass
 class ReceiptCalculation:
     """Complete calculated receipt ready for rendering."""
     config: ReceiptConfig
     calculated_items: list[CalculatedLineItem]
     standalone_discounts: list[StandaloneDiscount]
+    rows: list[ReceiptRow]  # interleaved items + standalone discounts in display order
 
     subtotal: Decimal
     standalone_discount_total: Decimal
