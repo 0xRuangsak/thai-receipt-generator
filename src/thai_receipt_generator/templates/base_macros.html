@@ -1,0 +1,89 @@
+{% macro thai_currency(amount) -%}
+{{ "{:,.2f}".format(amount|float) }}
+{%- endmacro %}
+
+{% macro line_item_row(idx, calc_item, show_vat=false, show_wht=false) %}
+<tr>
+    <td class="center">{{ idx }}</td>
+    <td>{{ calc_item.source.name }}</td>
+    <td class="center">{{ calc_item.source.quantity }}</td>
+    <td class="right">{{ thai_currency(calc_item.source.unit_price) }}</td>
+    <td class="right">
+        {% if calc_item.discount_amount > 0 %}
+            {% if calc_item.source.discount.type.value == 'percentage' %}
+                {{ calc_item.source.discount.value }}%
+            {% else %}
+                {{ thai_currency(calc_item.discount_amount) }}
+            {% endif %}
+        {% else %}
+            -
+        {% endif %}
+    </td>
+    {% if show_vat %}
+    <td class="right">
+        {% if calc_item.source.has_vat %}{{ thai_currency(calc_item.vat_amount) }}{% else %}-{% endif %}
+    </td>
+    {% endif %}
+    {% if show_wht %}
+    <td class="right">
+        {% if calc_item.source.has_wht %}{{ thai_currency(calc_item.wht_amount) }}{% else %}-{% endif %}
+    </td>
+    {% endif %}
+    <td class="right">{{ thai_currency(calc_item.net_amount) }}</td>
+</tr>
+{% endmacro %}
+
+{% macro standalone_discount_row(sd, colspan) %}
+<tr class="discount-row">
+    <td></td>
+    <td>{{ sd.name }}</td>
+    <td colspan="{{ colspan }}" class="right discount-amount">({{ thai_currency(sd.amount) }})</td>
+</tr>
+{% endmacro %}
+
+{% macro summary_block(receipt) %}
+<div class="summary">
+    <table class="summary-table">
+        <tr>
+            <td>ยอดรวม</td>
+            <td class="right">{{ thai_currency(receipt.subtotal) }} บาท</td>
+        </tr>
+        {% if receipt.standalone_discount_total > 0 %}
+        <tr>
+            <td>ส่วนลดรายการ</td>
+            <td class="right discount-amount">({{ thai_currency(receipt.standalone_discount_total) }}) บาท</td>
+        </tr>
+        {% endif %}
+        {% if receipt.overall_discount_amount > 0 %}
+        <tr>
+            <td>ส่วนลดรวม
+                {% if receipt.config.overall_discount.type.value == 'percentage' %}
+                    ({{ receipt.config.overall_discount.value }}%)
+                {% endif %}
+            </td>
+            <td class="right discount-amount">({{ thai_currency(receipt.overall_discount_amount) }}) บาท</td>
+        </tr>
+        {% endif %}
+        {% if receipt.total_vat > 0 %}
+        <tr>
+            <td>ภาษีมูลค่าเพิ่ม (VAT)
+                {% if receipt.config.overall_vat %}{{ receipt.config.overall_vat_rate }}%{% endif %}
+            </td>
+            <td class="right">{{ thai_currency(receipt.total_vat) }} บาท</td>
+        </tr>
+        {% endif %}
+        {% if receipt.total_wht > 0 %}
+        <tr>
+            <td>หัก ณ ที่จ่าย (WHT)
+                {% if receipt.config.overall_wht %}{{ receipt.config.overall_wht_rate }}%{% endif %}
+            </td>
+            <td class="right wht-amount">{{ thai_currency(receipt.total_wht) }} บาท</td>
+        </tr>
+        {% endif %}
+        <tr class="grand-total">
+            <td>ยอดที่ต้องชำระ</td>
+            <td class="right">{{ thai_currency(receipt.grand_total) }} บาท</td>
+        </tr>
+    </table>
+</div>
+{% endmacro %}

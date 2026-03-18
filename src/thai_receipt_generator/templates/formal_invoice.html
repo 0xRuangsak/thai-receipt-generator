@@ -1,0 +1,158 @@
+{% from "base_macros.html" import thai_currency, line_item_row, standalone_discount_row, summary_block %}
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<style>
+@font-face {
+    font-family: 'NotoSansThai';
+    src: url(data:font/truetype;base64,{{ font_base64 }}) format('truetype');
+    font-weight: normal;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    font-family: 'NotoSansThai', sans-serif;
+    width: 800px;
+    padding: 40px;
+    background: #fff;
+    color: #1a1a1a;
+    font-size: 13px;
+    line-height: 1.5;
+}
+.header {
+    background: #1a2040;
+    color: #fff;
+    padding: 24px 32px;
+    margin: -40px -40px 0 -40px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+.header-left h1 { font-size: 22px; font-weight: 600; }
+.header-left .invoice-no { color: #a0aac0; font-size: 12px; margin-top: 4px; }
+.header-right { text-align: right; font-size: 13px; }
+.header-right .company { font-size: 15px; font-weight: 500; }
+.header-right .meta { color: #a0aac0; font-size: 12px; }
+
+.client-info {
+    margin: 24px 0;
+    padding: 12px 0;
+    border-bottom: 1px solid #e0e0e0;
+}
+.client-info .label { color: #888; font-size: 12px; }
+
+table.items {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0;
+}
+table.items thead { background: #f5f7fa; }
+table.items th {
+    padding: 10px 12px;
+    text-align: left;
+    font-weight: 500;
+    font-size: 12px;
+    color: #555;
+    border-bottom: 2px solid #e0e0e0;
+}
+table.items td {
+    padding: 10px 12px;
+    border-bottom: 1px solid #eee;
+}
+table.items .center { text-align: center; }
+table.items .right { text-align: right; }
+.discount-row td { color: #b42828; }
+.discount-amount { color: #b42828; }
+.wht-amount { color: #b42828; }
+
+.summary {
+    margin-top: 20px;
+    display: flex;
+    justify-content: flex-end;
+}
+.summary-table {
+    width: 340px;
+    background: #f5f7fa;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    padding: 12px;
+}
+.summary-table td { padding: 6px 12px; }
+.summary-table .right { text-align: right; }
+.grand-total td {
+    font-weight: 700;
+    font-size: 15px;
+    border-top: 2px solid #ccc;
+    padding-top: 10px;
+}
+
+.footer {
+    margin-top: 40px;
+    padding-top: 16px;
+    border-top: 1px solid #e0e0e0;
+    display: flex;
+    justify-content: space-between;
+    color: #888;
+    font-size: 12px;
+}
+.note { margin-top: 12px; color: #888; font-size: 11px; }
+</style>
+</head>
+<body>
+<div class="header">
+    <div class="header-left">
+        <h1>ใบแจ้งหนี้ / INVOICE</h1>
+        <div class="invoice-no">เลขที่: INV-{{ invoice_no }}</div>
+    </div>
+    <div class="header-right">
+        <div class="company">บริษัท ทดสอบ จำกัด</div>
+        <div class="meta">วันที่: {{ date }}</div>
+        <div class="meta">ครบกำหนด: {{ due_date }}</div>
+    </div>
+</div>
+
+<div class="client-info">
+    <div><span class="label">ลูกค้า:</span> นาย สมชาย ใจดี</div>
+    <div><span class="label">ที่อยู่:</span> 123 ถ.สุขุมวิท กรุงเทพฯ 10110</div>
+</div>
+
+{% set show_vat = receipt.per_item_vat_total > 0 %}
+{% set show_wht = receipt.per_item_wht_total > 0 %}
+{% set base_cols = 5 %}
+{% set extra_cols = (1 if show_vat else 0) + (1 if show_wht else 0) %}
+
+<table class="items">
+<thead>
+    <tr>
+        <th class="center" style="width:40px">#</th>
+        <th>รายการ</th>
+        <th class="center" style="width:60px">จำนวน</th>
+        <th class="right" style="width:100px">ราคา/หน่วย</th>
+        <th class="right" style="width:80px">ส่วนลด</th>
+        {% if show_vat %}<th class="right" style="width:80px">VAT</th>{% endif %}
+        {% if show_wht %}<th class="right" style="width:80px">WHT</th>{% endif %}
+        <th class="right" style="width:100px">รวม (บาท)</th>
+    </tr>
+</thead>
+<tbody>
+    {% for calc_item in receipt.calculated_items %}
+        {{ line_item_row(loop.index, calc_item, show_vat, show_wht) }}
+    {% endfor %}
+    {% for sd in receipt.standalone_discounts %}
+        {{ standalone_discount_row(sd, base_cols + extra_cols - 2) }}
+    {% endfor %}
+</tbody>
+</table>
+
+{% if receipt.standalone_discounts %}
+<div class="note">* ส่วนลดพิเศษ</div>
+{% endif %}
+
+{{ summary_block(receipt) }}
+
+<div class="footer">
+    <span>ขอบคุณที่ใช้บริการ</span>
+    <span>ลายเซ็น: _________________</span>
+</div>
+</body>
+</html>

@@ -1,0 +1,132 @@
+{% from "base_macros.html" import thai_currency, summary_block %}
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<style>
+@font-face {
+    font-family: 'NotoSansThai';
+    src: url(data:font/truetype;base64,{{ font_base64 }}) format('truetype');
+    font-weight: normal;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    font-family: 'NotoSansThai', sans-serif;
+    width: 560px;
+    padding: 32px;
+    background: #fff;
+    color: #222;
+    font-size: 13px;
+    line-height: 1.5;
+}
+.header {
+    text-align: center;
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid #333;
+}
+.header h1 { font-size: 18px; }
+.header .sub { color: #666; font-size: 11px; }
+
+.info {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    font-size: 12px;
+    color: #555;
+}
+
+table.items {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0;
+}
+table.items th {
+    text-align: left;
+    padding: 6px 8px;
+    border-bottom: 1px solid #333;
+    font-size: 11px;
+    color: #666;
+}
+table.items td {
+    padding: 6px 8px;
+    border-bottom: 1px solid #eee;
+}
+.right { text-align: right; }
+.center { text-align: center; }
+.discount-row td { color: #c03030; }
+.discount-amount { color: #c03030; }
+.wht-amount { color: #c03030; }
+
+.summary { margin-top: 16px; display: flex; justify-content: flex-end; }
+.summary-table {
+    width: 260px;
+    border-top: 2px solid #333;
+    padding-top: 8px;
+}
+.summary-table td { padding: 4px 8px; font-size: 12px; }
+.grand-total td {
+    font-weight: 700;
+    font-size: 14px;
+    border-top: 1px solid #999;
+    padding-top: 8px;
+}
+
+.footer {
+    margin-top: 24px;
+    text-align: center;
+    color: #999;
+    font-size: 11px;
+}
+</style>
+</head>
+<body>
+<div class="header">
+    <h1>ใบเสร็จรับเงิน</h1>
+    <div class="sub">บริษัท ทดสอบ จำกัด</div>
+</div>
+
+<div class="info">
+    <span>เลขที่: RCP-{{ invoice_no }}</span>
+    <span>วันที่: {{ date }}</span>
+</div>
+
+<table class="items">
+<thead>
+    <tr>
+        <th>รายการ</th>
+        <th class="center">จำนวน</th>
+        <th class="right">ราคา</th>
+        <th class="right">ส่วนลด</th>
+        <th class="right">รวม</th>
+    </tr>
+</thead>
+<tbody>
+    {% for ci in receipt.calculated_items %}
+    <tr>
+        <td>{{ ci.source.name }}</td>
+        <td class="center">{{ ci.source.quantity }}</td>
+        <td class="right">{{ thai_currency(ci.source.unit_price) }}</td>
+        <td class="right">
+            {% if ci.discount_amount > 0 %}
+                {% if ci.source.discount.type.value == 'percentage' %}{{ ci.source.discount.value }}%{% else %}{{ thai_currency(ci.discount_amount) }}{% endif %}
+            {% else %}-{% endif %}
+        </td>
+        <td class="right">{{ thai_currency(ci.net_amount) }}</td>
+    </tr>
+    {% endfor %}
+    {% for sd in receipt.standalone_discounts %}
+    <tr class="discount-row">
+        <td>{{ sd.name }}</td>
+        <td colspan="3"></td>
+        <td class="right discount-amount">({{ thai_currency(sd.amount) }})</td>
+    </tr>
+    {% endfor %}
+</tbody>
+</table>
+
+{{ summary_block(receipt) }}
+
+<div class="footer">ขอบคุณที่ใช้บริการ</div>
+</body>
+</html>

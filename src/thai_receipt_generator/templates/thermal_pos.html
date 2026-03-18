@@ -1,0 +1,161 @@
+{% from "base_macros.html" import thai_currency %}
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<style>
+@font-face {
+    font-family: 'NotoSansThai';
+    src: url(data:font/truetype;base64,{{ font_base64 }}) format('truetype');
+    font-weight: normal;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    font-family: 'NotoSansThai', monospace;
+    width: 320px;
+    padding: 16px;
+    background: #fff;
+    color: #111;
+    font-size: 12px;
+    line-height: 1.6;
+}
+.center { text-align: center; }
+.right { text-align: right; }
+.header {
+    text-align: center;
+    margin-bottom: 8px;
+}
+.header h1 { font-size: 14px; font-weight: 700; }
+.header .sub { font-size: 10px; color: #555; }
+
+.divider {
+    border: none;
+    border-top: 1px dashed #999;
+    margin: 8px 0;
+}
+
+.item-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 2px 0;
+}
+.item-row .name { flex: 1; }
+.item-row .amount { text-align: right; min-width: 70px; }
+.item-detail {
+    font-size: 10px;
+    color: #666;
+    padding-left: 12px;
+}
+.discount-text { color: #c03030; }
+
+.summary-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 2px 0;
+}
+.summary-row.total {
+    font-weight: 700;
+    font-size: 14px;
+    padding: 4px 0;
+}
+.wht-text { color: #c03030; }
+
+.footer {
+    text-align: center;
+    margin-top: 12px;
+    font-size: 10px;
+    color: #888;
+}
+</style>
+</head>
+<body>
+<div class="header">
+    <h1>ร้าน ทดสอบ</h1>
+    <div class="sub">123 ถ.สุขุมวิท กรุงเทพฯ</div>
+    <div class="sub">โทร: 02-123-4567</div>
+</div>
+
+<hr class="divider">
+<div style="display:flex;justify-content:space-between;font-size:10px;color:#666;">
+    <span>#{{ invoice_no }}</span>
+    <span>{{ date }}</span>
+</div>
+<hr class="divider">
+
+{% for ci in receipt.calculated_items %}
+<div class="item-row">
+    <span class="name">{{ ci.source.name }}</span>
+    <span class="amount">{{ thai_currency(ci.net_amount) }}</span>
+</div>
+{% if ci.source.quantity > 1 %}
+<div class="item-detail">{{ ci.source.quantity }} x {{ thai_currency(ci.source.unit_price) }}</div>
+{% endif %}
+{% if ci.discount_amount > 0 %}
+<div class="item-detail discount-text">
+    ส่วนลด:
+    {% if ci.source.discount.type.value == 'percentage' %}{{ ci.source.discount.value }}%{% else %}-{{ thai_currency(ci.discount_amount) }}{% endif %}
+</div>
+{% endif %}
+{% if ci.source.has_vat %}
+<div class="item-detail">VAT: {{ thai_currency(ci.vat_amount) }}</div>
+{% endif %}
+{% if ci.source.has_wht %}
+<div class="item-detail wht-text">WHT: {{ thai_currency(ci.wht_amount) }}</div>
+{% endif %}
+{% endfor %}
+
+{% for sd in receipt.standalone_discounts %}
+<div class="item-row discount-text">
+    <span class="name">{{ sd.name }}</span>
+    <span class="amount">({{ thai_currency(sd.amount) }})</span>
+</div>
+{% endfor %}
+
+<hr class="divider">
+
+<div class="summary-row">
+    <span>ยอดรวม</span>
+    <span>{{ thai_currency(receipt.subtotal) }}</span>
+</div>
+{% if receipt.standalone_discount_total > 0 %}
+<div class="summary-row discount-text">
+    <span>ส่วนลด</span>
+    <span>({{ thai_currency(receipt.standalone_discount_total) }})</span>
+</div>
+{% endif %}
+{% if receipt.overall_discount_amount > 0 %}
+<div class="summary-row discount-text">
+    <span>ส่วนลดรวม
+        {% if receipt.config.overall_discount.type.value == 'percentage' %}({{ receipt.config.overall_discount.value }}%){% endif %}
+    </span>
+    <span>({{ thai_currency(receipt.overall_discount_amount) }})</span>
+</div>
+{% endif %}
+{% if receipt.total_vat > 0 %}
+<div class="summary-row">
+    <span>VAT</span>
+    <span>{{ thai_currency(receipt.total_vat) }}</span>
+</div>
+{% endif %}
+{% if receipt.total_wht > 0 %}
+<div class="summary-row wht-text">
+    <span>หัก ณ ที่จ่าย</span>
+    <span>{{ thai_currency(receipt.total_wht) }}</span>
+</div>
+{% endif %}
+
+<hr class="divider">
+
+<div class="summary-row total">
+    <span>รวมทั้งสิ้น</span>
+    <span>{{ thai_currency(receipt.grand_total) }} ฿</span>
+</div>
+
+<hr class="divider">
+
+<div class="footer">
+    ขอบคุณที่ใช้บริการ<br>
+    Thank you!
+</div>
+</body>
+</html>
