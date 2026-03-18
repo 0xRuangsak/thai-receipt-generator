@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+from decimal import Decimal
 from pathlib import Path
 
 import click
@@ -7,7 +9,13 @@ from dotenv import load_dotenv
 
 from .calculator import calculate
 from .combinator import CombinatorSpec, count_combinations, generate
-from .models import DiscountType
+from .models import (
+    Discount,
+    DiscountType,
+    LineItem,
+    ReceiptConfig,
+    StandaloneDiscount,
+)
 from .renderer import render_batch
 
 load_dotenv()
@@ -136,6 +144,70 @@ def list_combos(
     )
     total = count_combinations(spec)
     click.echo(f"Total combinations: {total}")
+
+
+def _parse_discount(d: dict | None) -> Discount:
+    if not d:
+        return Discount()
+    return Discount(
+        type=DiscountType(d.get("type", "none")),
+        value=Decimal(str(d.get("value", 0))),
+    )
+
+
+def _parse_config(data: dict) -> ReceiptConfig:
+    items = []
+    for item in data.get("items", []):
+        items.append(LineItem(
+            name=item["name"],
+            quantity=item.get("quantity", 1),
+            unit_price=Decimal(str(item["unit_price"])),
+            has_vat=item.get("has_vat", False),
+            has_wht=item.get("has_wht", False),
+            wht_rate=Decimal(str(item.get("wht_rate", 3))),
+            discount=_parse_discount(item.get("discount")),
+        ))
+
+    standalone_discounts = []
+    for sd in data.get("standalone_discounts", []):
+        standalone_discounts.append(StandaloneDiscount(
+            name=sd.get("name", "ส่วนลด"),
+            amount=Decimal(str(sd["amount"])),
+        ))
+
+    return ReceiptConfig(
+        items=items,
+        standalone_discounts=standalone_discounts,
+        overall_discount=_parse_discount(data.get("overall_discount")),
+        overall_vat=data.get("overall_vat", False),
+        overall_vat_rate=Decimal(str(data.get("overall_vat_rate", 7))),
+        overall_wht=data.get("overall_wht", False),
+        overall_wht_rate=Decimal(str(data.get("overall_wht_rate", 3))),
+        template_name=data.get("template", "formal_invoice"),
+    )
+
+
+@main.command()
+@click.argument("config_file", type=click.Path(exists=True))
+@click.option("--output", "-o", envvar="RECEIPT_OUTPUT_DIR", default="output", help="Output file or directory")
+@click.option("--dpi", envvar="RECEIPT_DPI", default=150, type=int, help="Rendering DPI")
+def single(config_file: str, output: str, dpi: int) -> None:
+    """Generate a single receipt from a JSON config file."""
+    data = json.loads(Path(config_file).read_text(encoding="utf-8"))
+    config = _parse_config(data)
+    receipt = calculate(config)
+
+    out = Path(output)
+    if out.suffix == ".png":
+        out_dir = out.parent
+        out_dir.mkdir(parents=True, exist_ok=True)
+        paths = render_batch([receipt], out_dir, dpi=dpi)
+        # Rename to desired filename
+        paths[0].rename(out)
+        click.echo(f"Saved → {out}")
+    else:
+        paths = render_batch([receipt], out, dpi=dpi)
+        click.echo(f"Saved → {paths[0]}")
 
 
 if __name__ == "__main__":

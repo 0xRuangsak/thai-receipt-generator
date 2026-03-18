@@ -1,0 +1,24 @@
+{
+  "template": "formal_invoice",
+  "items": [
+    {
+      "name": "ค่าออกแบบโลโก้",
+      "quantity": 1,
+      "unit_price": 5000
+    },
+    {
+      "name": "ค่าที่ปรึกษาธุรกิจ",
+      "quantity": 1,
+      "unit_price": 10000,
+      "has_wht": true,
+      "wht_rate": 3
+    }
+  ],
+  "standalone_discounts": [
+    {
+      "name": "ส่วนลดพิเศษลูกค้าใหม่",
+      "amount": 500
+    }
+  ],
+  "overall_vat": true
+}

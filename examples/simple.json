@@ -1,0 +1,16 @@
+{
+  "template": "formal_invoice",
+  "items": [
+    {
+      "name": "ไก่ทอด 3 ชิ้น",
+      "quantity": 2,
+      "unit_price": 89
+    },
+    {
+      "name": "กาแฟเย็น",
+      "quantity": 1,
+      "unit_price": 45
+    }
+  ],
+  "overall_vat": true
+}

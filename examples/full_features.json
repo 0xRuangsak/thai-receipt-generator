@@ -1,0 +1,42 @@
+{
+  "template": "thermal_pos",
+  "items": [
+    {
+      "name": "ข้าวผัดกุ้ง",
+      "quantity": 1,
+      "unit_price": 65,
+      "has_vat": true,
+      "discount": {
+        "type": "percentage",
+        "value": 10
+      }
+    },
+    {
+      "name": "บริการซ่อมแอร์",
+      "quantity": 1,
+      "unit_price": 1500,
+      "has_vat": true,
+      "has_wht": true,
+      "wht_rate": 3
+    },
+    {
+      "name": "น้ำส้ม",
+      "quantity": 3,
+      "unit_price": 25,
+      "discount": {
+        "type": "absolute",
+        "value": 10
+      }
+    }
+  ],
+  "standalone_discounts": [
+    {
+      "name": "ส่วนลดไก่ทอด",
+      "amount": 20
+    }
+  ],
+  "overall_discount": {
+    "type": "percentage",
+    "value": 5
+  }
+}

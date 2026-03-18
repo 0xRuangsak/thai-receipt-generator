@@ -72,7 +72,8 @@ async def _render_batch_async(
             await page.set_content(html, wait_until="networkidle")
 
             out_path = output_dir / f"{vid}.png"
-            await page.screenshot(path=str(out_path), full_page=True)
+            body = page.locator("body")
+            await body.screenshot(path=str(out_path))
             paths.append(out_path)
 
         await browser.close()
