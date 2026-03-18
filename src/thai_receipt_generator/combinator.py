@@ -101,10 +101,19 @@ def _make_discount(
     return Discount(type=disc_type, value=Decimal(str(rng.choice([5, 10, 15, 20]))))
 
 
+SAMPLE_SERVICES = [(n, p) for n, p, s in SAMPLE_PRODUCTS if s]
+SAMPLE_GOODS = [(n, p) for n, p, s in SAMPLE_PRODUCTS if not s]
+
+
 def _make_line_item(
-    profile: ItemProfile, product_pool: list[tuple[str, Decimal, bool]], idx: int, rng: random.Random
+    profile: ItemProfile, idx: int, rng: random.Random
 ) -> LineItem:
-    name, price, _is_service = product_pool[idx % len(product_pool)]
+    # WHT only applies to services — pick from the right pool
+    if profile.has_wht:
+        pool = SAMPLE_SERVICES
+    else:
+        pool = SAMPLE_GOODS
+    name, price = pool[idx % len(pool)]
     qty = rng.choice([1, 2, 3])
     gross = price * qty
     return LineItem(
@@ -113,7 +122,7 @@ def _make_line_item(
         unit_price=price,
         has_vat=profile.has_vat,
         has_wht=profile.has_wht,
-        wht_rate=Decimal(str(rng.choice([1, 2, 3, 5]))),
+        wht_rate=Decimal(str(rng.choice([1, 2, 3, 5]))) if profile.has_wht else Decimal("3"),
         discount=_make_discount(profile.discount_type, rng, max_absolute=gross),
     )
 
@@ -173,7 +182,7 @@ def generate(spec: CombinatorSpec) -> Iterator[ReceiptConfig]:
 
     for item_count, profile_combo, sd_count, overall_disc, overall_vat, overall_wht, template in all_combos:
         items = [
-            _make_line_item(profile_combo[i], SAMPLE_PRODUCTS, i, rng)
+            _make_line_item(profile_combo[i], i, rng)
             for i in range(item_count)
         ]
 
