@@ -52,22 +52,32 @@ class ItemProfile:
     discount_type: DiscountType
 
 
+@dataclass(frozen=True)
+class TaxMode:
+    """A valid (per_item, overall) combination for VAT or WHT."""
+    per_item: bool
+    overall: bool
+
+
 @dataclass
 class CombinatorSpec:
     item_counts: list[int] = field(default_factory=lambda: [1, 2, 3])
 
-    per_item_vat_options: list[bool] = field(default_factory=lambda: [False, True])
-    per_item_wht_options: list[bool] = field(default_factory=lambda: [False, True])
+    # VAT/WHT: list of valid (per_item, overall) combos — never both True
+    vat_modes: list[TaxMode] = field(default_factory=lambda: [
+        TaxMode(False, False), TaxMode(True, False), TaxMode(False, True),
+    ])
+    wht_modes: list[TaxMode] = field(default_factory=lambda: [
+        TaxMode(False, False), TaxMode(True, False), TaxMode(False, True),
+    ])
+
     per_item_discount_options: list[DiscountType] = field(
         default_factory=lambda: [DiscountType.NONE, DiscountType.ABSOLUTE, DiscountType.PERCENTAGE]
     )
-
     standalone_discount_counts: list[int] = field(default_factory=lambda: [0, 1])
     overall_discount_options: list[DiscountType] = field(
         default_factory=lambda: [DiscountType.NONE, DiscountType.ABSOLUTE, DiscountType.PERCENTAGE]
     )
-    overall_vat_options: list[bool] = field(default_factory=lambda: [False, True])
-    overall_wht_options: list[bool] = field(default_factory=lambda: [False, True])
 
     template_names: list[str] = field(
         default_factory=lambda: ["formal_invoice", "simple_receipt", "thermal_pos"]
@@ -77,15 +87,9 @@ class CombinatorSpec:
     seed: int = 42
 
 
-def _build_profiles(spec: CombinatorSpec) -> list[ItemProfile]:
-    return [
-        ItemProfile(vat, wht, disc)
-        for vat, wht, disc in product(
-            spec.per_item_vat_options,
-            spec.per_item_wht_options,
-            spec.per_item_discount_options,
-        )
-    ]
+def _build_discount_profiles(spec: CombinatorSpec) -> list[DiscountType]:
+    """Get unique per-item discount options."""
+    return spec.per_item_discount_options
 
 
 def _make_discount(
@@ -137,116 +141,121 @@ def _profile_code(p: ItemProfile) -> str:
     return f"{v}_{w}_{d}"
 
 
+def _tax_mode_code(mode: TaxMode, prefix: str) -> str:
+    if mode.per_item:
+        return f"{prefix}_pi"
+    if mode.overall:
+        return f"{prefix}_oa"
+    return f"{prefix}_off"
+
+
 def _variation_id(
     item_count: int,
     profile_combo: tuple[ItemProfile, ...],
     sd_count: int,
     overall_disc: DiscountType,
-    overall_vat: bool,
-    overall_wht: bool,
+    vat_mode: TaxMode,
+    wht_mode: TaxMode,
     template: str,
 ) -> str:
     items_code = "-".join(_profile_code(p) for p in profile_combo)
     od = {"none": "odn", "absolute": "oda", "percentage": "odp"}[overall_disc.value]
-    ov = "ovat1" if overall_vat else "ovat0"
-    ow = "owht1" if overall_wht else "owht0"
-    return f"i{item_count}_{items_code}_sd{sd_count}_{od}_{ov}_{ow}_{template}"
+    vat_code = _tax_mode_code(vat_mode, "vat")
+    wht_code = _tax_mode_code(wht_mode, "wht")
+    return f"i{item_count}_{items_code}_sd{sd_count}_{od}_{vat_code}_{wht_code}_{template}"
 
 
 def generate(spec: CombinatorSpec) -> Iterator[ReceiptConfig]:
     rng = random.Random(spec.seed)
-    profiles = _build_profiles(spec)
+    discount_options = _build_discount_profiles(spec)
 
     all_combos: list[tuple] = []
 
     for item_count in spec.item_counts:
-        profile_combos = list(combinations_with_replacement(profiles, item_count))
+        # Per-item discount combos (each item gets a discount type independently)
+        discount_combos = list(combinations_with_replacement(discount_options, item_count))
 
-        for profile_combo, sd_count, overall_disc, overall_vat, overall_wht, template in product(
-            profile_combos,
+        for disc_combo, vat_mode, wht_mode, sd_count, overall_disc, template in product(
+            discount_combos,
+            spec.vat_modes,
+            spec.wht_modes,
             spec.standalone_discount_counts,
             spec.overall_discount_options,
-            spec.overall_vat_options,
-            spec.overall_wht_options,
             spec.template_names,
         ):
-            # Constraint: no per-item VAT if overall VAT is on (avoid double tax)
-            if overall_vat and any(p.has_vat for p in profile_combo):
-                continue
-            if overall_wht and any(p.has_wht for p in profile_combo):
-                continue
-
             all_combos.append(
-                (item_count, profile_combo, sd_count, overall_disc, overall_vat, overall_wht, template)
+                (item_count, disc_combo, vat_mode, wht_mode, sd_count, overall_disc, template)
             )
 
     if spec.max_combinations is not None and len(all_combos) > spec.max_combinations:
         all_combos = rng.sample(all_combos, spec.max_combinations)
 
-    for item_count, profile_combo, sd_count, overall_disc, overall_vat, overall_wht, template in all_combos:
+    for item_count, disc_combo, vat_mode, wht_mode, sd_count, overall_disc, template in all_combos:
+        # Build item profiles from tax modes + discount combo
+        profiles = [
+            ItemProfile(
+                has_vat=vat_mode.per_item,
+                has_wht=wht_mode.per_item,
+                discount_type=disc_combo[i],
+            )
+            for i in range(item_count)
+        ]
         items = [
-            _make_line_item(profile_combo[i], i, rng, force_service=overall_wht)
+            _make_line_item(profiles[i], i, rng, force_service=wht_mode.overall)
             for i in range(item_count)
         ]
 
         standalone_discounts = []
         for _ in range(sd_count):
-            # Pick generic or item-specific discount
             if rng.random() < 0.5 and items:
-                # Item-specific: reference an actual item on this receipt
                 target_idx = rng.randrange(len(items))
                 target = items[target_idx]
                 short_name = target.name.split()[0]
                 name = f"ส่วนลด{short_name}"
                 max_amt = target.unit_price
-                # Position: right after the referenced item, or at end
                 position = rng.choice([target_idx + 1, -1])
             else:
-                # Generic discount
                 name = rng.choice(GENERIC_DISCOUNT_NAMES)
                 max_amt = Decimal("200")
-                # Position: anywhere among items, or at end
                 position = rng.choice([*range(item_count + 1), -1])
             amount = Decimal(str(rng.choice([10, 20, 50, 100])))
             amount = min(amount, max_amt)
             standalone_discounts.append(StandaloneDiscount(name=name, amount=amount, position=position))
 
+        vid = _variation_id(
+            item_count, tuple(profiles), sd_count, overall_disc,
+            vat_mode, wht_mode, template,
+        )
+
         yield ReceiptConfig(
             items=items,
             standalone_discounts=standalone_discounts,
             overall_discount=_make_discount(overall_disc, rng),
-            overall_vat=overall_vat,
+            overall_vat=vat_mode.overall,
             overall_vat_rate=Decimal("7"),
-            overall_wht=overall_wht,
+            overall_wht=wht_mode.overall,
             overall_wht_rate=Decimal("3"),
             template_name=template,
-            variation_id=_variation_id(
-                item_count, profile_combo, sd_count, overall_disc,
-                overall_vat, overall_wht, template,
-            ),
+            variation_id=vid,
         )
 
 
 def count_combinations(spec: CombinatorSpec) -> int:
     """Dry-run: count how many combos without generating configs."""
-    profiles = _build_profiles(spec)
+    discount_options = _build_discount_profiles(spec)
     total = 0
 
     for item_count in spec.item_counts:
-        profile_combos = list(combinations_with_replacement(profiles, item_count))
+        discount_combos = list(combinations_with_replacement(discount_options, item_count))
 
-        for profile_combo, _sd, overall_disc, overall_vat, overall_wht, _tmpl in product(
-            profile_combos,
+        for _dc, _vm, _wm, _sd, _od, _tmpl in product(
+            discount_combos,
+            spec.vat_modes,
+            spec.wht_modes,
             spec.standalone_discount_counts,
             spec.overall_discount_options,
-            spec.overall_vat_options,
-            spec.overall_wht_options,
             spec.template_names,
         ):
-            if overall_vat and any(p.has_vat for p in profile_combo):
-                continue
-            if overall_wht and any(p.has_wht for p in profile_combo):
-                continue
             total += 1
 
     if spec.max_combinations is not None:

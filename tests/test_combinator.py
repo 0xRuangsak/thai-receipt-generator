@@ -1,17 +1,15 @@
-from thai_receipt_generator.combinator import CombinatorSpec, count_combinations, generate
+from thai_receipt_generator.combinator import CombinatorSpec, TaxMode, count_combinations, generate
 from thai_receipt_generator.models import DiscountType
 
 
 def test_minimal_spec():
     spec = CombinatorSpec(
         item_counts=[1],
-        per_item_vat_options=[False],
-        per_item_wht_options=[False],
+        vat_modes=[TaxMode(False, False)],
+        wht_modes=[TaxMode(False, False)],
         per_item_discount_options=[DiscountType.NONE],
         standalone_discount_counts=[0],
         overall_discount_options=[DiscountType.NONE],
-        overall_vat_options=[False],
-        overall_wht_options=[False],
         template_names=["formal_invoice"],
     )
     assert count_combinations(spec) == 1
@@ -20,21 +18,25 @@ def test_minimal_spec():
     assert len(configs[0].items) == 1
 
 
-def test_constraint_filters_double_vat():
-    """Overall VAT + per-item VAT combos should be filtered out."""
+def test_no_double_vat_in_tax_modes():
+    """TaxMode ensures per_item and overall are never both True."""
     spec = CombinatorSpec(
         item_counts=[1],
-        per_item_vat_options=[True],
-        per_item_wht_options=[False],
+        vat_modes=[TaxMode(True, False), TaxMode(False, True)],
+        wht_modes=[TaxMode(False, False)],
         per_item_discount_options=[DiscountType.NONE],
         standalone_discount_counts=[0],
         overall_discount_options=[DiscountType.NONE],
-        overall_vat_options=[True],
-        overall_wht_options=[False],
         template_names=["formal_invoice"],
     )
-    # All items have VAT and overall VAT is on → all filtered out
-    assert count_combinations(spec) == 0
+    # 2 VAT modes * 1 WHT mode * 1 discount * 1 sd * 1 od * 1 tmpl = 2
+    assert count_combinations(spec) == 2
+    configs = list(generate(spec))
+    # One has per-item VAT, other has overall VAT — never both
+    vat_configs = [(c.items[0].has_vat, c.overall_vat) for c in configs]
+    assert (True, False) in vat_configs
+    assert (False, True) in vat_configs
+    assert (True, True) not in vat_configs
 
 
 def test_max_combinations_sampling():
@@ -53,13 +55,11 @@ def test_max_combinations_sampling():
 def test_variation_ids_unique():
     spec = CombinatorSpec(
         item_counts=[1],
-        per_item_vat_options=[False, True],
-        per_item_wht_options=[False],
+        vat_modes=[TaxMode(False, False), TaxMode(True, False), TaxMode(False, True)],
+        wht_modes=[TaxMode(False, False)],
         per_item_discount_options=[DiscountType.NONE],
         standalone_discount_counts=[0],
         overall_discount_options=[DiscountType.NONE],
-        overall_vat_options=[False],
-        overall_wht_options=[False],
         template_names=["formal_invoice"],
     )
     configs = list(generate(spec))

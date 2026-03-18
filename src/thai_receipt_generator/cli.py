@@ -8,7 +8,7 @@ import click
 from dotenv import load_dotenv
 
 from .calculator import calculate
-from .combinator import CombinatorSpec, count_combinations, generate
+from .combinator import CombinatorSpec, TaxMode, count_combinations, generate
 from .models import (
     Discount,
     DiscountType,
@@ -120,35 +120,36 @@ def _parse_config(data: dict) -> ReceiptConfig:
 # ── Spec builder ──────────────────────────────────────────────────────────────
 
 
-_AXIS_CHOICES = click.Choice(["true", "false", "vary"])
+_TAX_CHOICES = click.Choice(["none", "per_item", "overall", "vary"])
 _DISCOUNT_CHOICES = click.Choice(["true", "false", "vary"])
 
 
-def _bool_axis(val: str) -> list[bool]:
-    """Convert axis string to list of options."""
-    if val == "true":
-        return [True]
-    if val == "false":
-        return [False]
-    return [False, True]  # vary
+def _tax_modes(val: str) -> list[TaxMode]:
+    """Convert tax setting to list of valid TaxMode combos."""
+    if val == "none":
+        return [TaxMode(False, False)]
+    if val == "per_item":
+        return [TaxMode(True, False)]
+    if val == "overall":
+        return [TaxMode(False, True)]
+    # vary: all 3 valid combos (never both True)
+    return [TaxMode(False, False), TaxMode(True, False), TaxMode(False, True)]
 
 
 def _discount_axis(val: str) -> list[DiscountType]:
-    """Convert discount axis string to list of options."""
     if val == "true":
         return [DiscountType.ABSOLUTE, DiscountType.PERCENTAGE]
     if val == "false":
         return [DiscountType.NONE]
-    return [DiscountType.NONE, DiscountType.ABSOLUTE, DiscountType.PERCENTAGE]  # vary
+    return [DiscountType.NONE, DiscountType.ABSOLUTE, DiscountType.PERCENTAGE]
 
 
 def _standalone_axis(val: str) -> list[int]:
-    """Convert standalone discount axis to list of counts."""
     if val == "true":
         return [1]
     if val == "false":
         return [0]
-    return [0, 1]  # vary
+    return [0, 1]
 
 
 def _build_spec(
@@ -158,13 +159,11 @@ def _build_spec(
     tmpl_thermal_pos: bool,
     max_combos: int | None,
     seed: int,
-    per_item_vat: str,
-    per_item_wht: str,
+    vat: str,
+    wht: str,
     per_item_discount: str,
     standalone_discount: str,
     overall_discount: str,
-    overall_vat: str,
-    overall_wht: str,
 ) -> CombinatorSpec:
     templates = []
     if tmpl_formal_invoice:
@@ -178,13 +177,11 @@ def _build_spec(
 
     return CombinatorSpec(
         item_counts=[int(x) for x in items.split(",")],
-        per_item_vat_options=_bool_axis(per_item_vat),
-        per_item_wht_options=_bool_axis(per_item_wht),
+        vat_modes=_tax_modes(vat),
+        wht_modes=_tax_modes(wht),
         per_item_discount_options=_discount_axis(per_item_discount),
         standalone_discount_counts=_standalone_axis(standalone_discount),
         overall_discount_options=_discount_axis(overall_discount),
-        overall_vat_options=_bool_axis(overall_vat),
-        overall_wht_options=_bool_axis(overall_wht),
         template_names=templates,
         max_combinations=max_combos,
         seed=seed,
@@ -199,13 +196,11 @@ _shared_options = [
     click.option("--tmpl-thermal-pos/--no-tmpl-thermal-pos", envvar="RECEIPT_TMPL_THERMAL_POS", default=True, help="Include thermal POS template"),
     click.option("--max-combos", envvar="RECEIPT_MAX_COMBOS", default=None, type=int, help="Max combinations to sample"),
     click.option("--seed", envvar="RECEIPT_SEED", default=42, type=int, help="Random seed"),
-    click.option("--per-item-vat", envvar="RECEIPT_PER_ITEM_VAT", type=_AXIS_CHOICES, default="vary", help="Per-item VAT: true/false/vary"),
-    click.option("--per-item-wht", envvar="RECEIPT_PER_ITEM_WHT", type=_AXIS_CHOICES, default="vary", help="Per-item WHT: true/false/vary"),
+    click.option("--vat", envvar="RECEIPT_VAT", type=_TAX_CHOICES, default="vary", help="VAT mode: none/per_item/overall/vary"),
+    click.option("--wht", envvar="RECEIPT_WHT", type=_TAX_CHOICES, default="vary", help="WHT mode: none/per_item/overall/vary"),
     click.option("--per-item-discount", envvar="RECEIPT_PER_ITEM_DISCOUNT", type=_DISCOUNT_CHOICES, default="vary", help="Per-item discount: true/false/vary"),
     click.option("--standalone-discount", envvar="RECEIPT_STANDALONE_DISCOUNT", type=_DISCOUNT_CHOICES, default="vary", help="Standalone discount rows: true/false/vary"),
     click.option("--overall-discount", envvar="RECEIPT_OVERALL_DISCOUNT", type=_DISCOUNT_CHOICES, default="vary", help="Overall discount: true/false/vary"),
-    click.option("--overall-vat", envvar="RECEIPT_OVERALL_VAT", type=_AXIS_CHOICES, default="vary", help="Overall VAT: true/false/vary"),
-    click.option("--overall-wht", envvar="RECEIPT_OVERALL_WHT", type=_AXIS_CHOICES, default="vary", help="Overall WHT: true/false/vary"),
 ]
 
 
@@ -235,20 +230,18 @@ def gen_json(
     tmpl_thermal_pos: bool,
     max_combos: int | None,
     seed: int,
-    per_item_vat: str,
-    per_item_wht: str,
+    vat: str,
+    wht: str,
     per_item_discount: str,
     standalone_discount: str,
     overall_discount: str,
-    overall_vat: str,
-    overall_wht: str,
 ) -> None:
     """Step 1: Generate JSON configs from combinatorial spec. Review/edit them before rendering."""
     spec = _build_spec(
         items, tmpl_formal_invoice, tmpl_simple_receipt, tmpl_thermal_pos,
         max_combos, seed,
-        per_item_vat, per_item_wht, per_item_discount,
-        standalone_discount, overall_discount, overall_vat, overall_wht,
+        vat, wht, per_item_discount,
+        standalone_discount, overall_discount,
     )
 
     total = count_combinations(spec)
@@ -331,20 +324,18 @@ def list_combos(
     tmpl_thermal_pos: bool,
     max_combos: int | None,
     seed: int,
-    per_item_vat: str,
-    per_item_wht: str,
+    vat: str,
+    wht: str,
     per_item_discount: str,
     standalone_discount: str,
     overall_discount: str,
-    overall_vat: str,
-    overall_wht: str,
 ) -> None:
     """Dry run: count combinations without rendering."""
     spec = _build_spec(
         items, tmpl_formal_invoice, tmpl_simple_receipt, tmpl_thermal_pos,
         max_combos, seed,
-        per_item_vat, per_item_wht, per_item_discount,
-        standalone_discount, overall_discount, overall_vat, overall_wht,
+        vat, wht, per_item_discount,
+        standalone_discount, overall_discount,
     )
     total = count_combinations(spec)
     click.echo(f"Total combinations: {total}")
