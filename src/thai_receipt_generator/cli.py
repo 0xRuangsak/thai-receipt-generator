@@ -119,7 +119,9 @@ def _parse_config(data: dict) -> ReceiptConfig:
 
 def _build_spec(
     items: str,
-    templates: str,
+    tmpl_formal_invoice: bool,
+    tmpl_simple_receipt: bool,
+    tmpl_thermal_pos: bool,
     max_combos: int | None,
     seed: int,
     no_per_item_vat: bool,
@@ -130,6 +132,16 @@ def _build_spec(
     no_overall_vat: bool,
     no_overall_wht: bool,
 ) -> CombinatorSpec:
+    templates = []
+    if tmpl_formal_invoice:
+        templates.append("formal_invoice")
+    if tmpl_simple_receipt:
+        templates.append("simple_receipt")
+    if tmpl_thermal_pos:
+        templates.append("thermal_pos")
+    if not templates:
+        templates = ["formal_invoice"]  # fallback
+
     return CombinatorSpec(
         item_counts=[int(x) for x in items.split(",")],
         per_item_vat_options=[False] if no_per_item_vat else [False, True],
@@ -145,7 +157,7 @@ def _build_spec(
         ),
         overall_vat_options=[False] if no_overall_vat else [False, True],
         overall_wht_options=[False] if no_overall_wht else [False, True],
-        template_names=[t.strip() for t in templates.split(",")],
+        template_names=templates,
         max_combinations=max_combos,
         seed=seed,
     )
@@ -154,7 +166,9 @@ def _build_spec(
 # Shared options for combinator commands
 _shared_options = [
     click.option("--items", envvar="RECEIPT_ITEMS", default="1,2,3", help="Comma-separated item counts"),
-    click.option("--templates", envvar="RECEIPT_TEMPLATES", default="formal_invoice,simple_receipt,thermal_pos", help="Comma-separated template names"),
+    click.option("--tmpl-formal-invoice/--no-tmpl-formal-invoice", envvar="RECEIPT_TMPL_FORMAL_INVOICE", default=True, help="Include formal invoice template"),
+    click.option("--tmpl-simple-receipt/--no-tmpl-simple-receipt", envvar="RECEIPT_TMPL_SIMPLE_RECEIPT", default=True, help="Include simple receipt template"),
+    click.option("--tmpl-thermal-pos/--no-tmpl-thermal-pos", envvar="RECEIPT_TMPL_THERMAL_POS", default=True, help="Include thermal POS template"),
     click.option("--max-combos", envvar="RECEIPT_MAX_COMBOS", default=None, type=int, help="Max combinations to sample"),
     click.option("--seed", envvar="RECEIPT_SEED", default=42, type=int, help="Random seed"),
     click.option("--no-per-item-vat", envvar="RECEIPT_NO_PER_ITEM_VAT", is_flag=True, help="Disable per-item VAT axis"),
@@ -188,7 +202,9 @@ def main() -> None:
 def gen_json(
     json_dir: str,
     items: str,
-    templates: str,
+    tmpl_formal_invoice: bool,
+    tmpl_simple_receipt: bool,
+    tmpl_thermal_pos: bool,
     max_combos: int | None,
     seed: int,
     no_per_item_vat: bool,
@@ -201,7 +217,8 @@ def gen_json(
 ) -> None:
     """Step 1: Generate JSON configs from combinatorial spec. Review/edit them before rendering."""
     spec = _build_spec(
-        items, templates, max_combos, seed,
+        items, tmpl_formal_invoice, tmpl_simple_receipt, tmpl_thermal_pos,
+        max_combos, seed,
         no_per_item_vat, no_per_item_wht, no_per_item_discount,
         no_standalone_discount, no_overall_discount, no_overall_vat, no_overall_wht,
     )
@@ -281,7 +298,9 @@ def single(config_file: str, output: str, dpi: int) -> None:
 @_add_shared_options
 def list_combos(
     items: str,
-    templates: str,
+    tmpl_formal_invoice: bool,
+    tmpl_simple_receipt: bool,
+    tmpl_thermal_pos: bool,
     max_combos: int | None,
     seed: int,
     no_per_item_vat: bool,
@@ -294,7 +313,8 @@ def list_combos(
 ) -> None:
     """Dry run: count combinations without rendering."""
     spec = _build_spec(
-        items, templates, max_combos, seed,
+        items, tmpl_formal_invoice, tmpl_simple_receipt, tmpl_thermal_pos,
+        max_combos, seed,
         no_per_item_vat, no_per_item_wht, no_per_item_discount,
         no_standalone_discount, no_overall_discount, no_overall_vat, no_overall_wht,
     )
