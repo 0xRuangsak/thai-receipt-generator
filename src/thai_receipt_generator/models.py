@@ -10,6 +10,11 @@ class ItemType(Enum):
     SERVICE = "service"
 
 
+class VatStyle(Enum):
+    EXCLUSIVE = "exclusive"  # VAT added on top of price
+    INCLUSIVE = "inclusive"   # VAT already included in price
+
+
 class DiscountType(Enum):
     NONE = "none"
     ABSOLUTE = "absolute"
@@ -55,6 +60,7 @@ class ReceiptConfig:
     overall_discount: Discount = field(default_factory=Discount)
     overall_vat: bool = False
     overall_vat_rate: Decimal = Decimal("7")
+    vat_style: VatStyle = VatStyle.EXCLUSIVE
     overall_wht: bool = False
     overall_wht_rate: Decimal = Decimal("3")
 

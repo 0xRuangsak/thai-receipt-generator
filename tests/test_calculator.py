@@ -7,6 +7,7 @@ from thai_receipt_generator.models import (
     LineItem,
     ReceiptConfig,
     StandaloneDiscount,
+    VatStyle,
 )
 
 
@@ -138,3 +139,53 @@ def test_full_scenario_like_sample_code():
     assert r.overall_vat_amount == Decimal("1015.00")
     assert r.per_item_wht_total == Decimal("300.00")
     assert r.grand_total == Decimal("15215.00")
+
+
+# ── VAT Inclusive tests ──────────────────────────────────────────────────────
+
+
+def test_per_item_vat_inclusive():
+    """VAT inclusive: price 100 already includes VAT → vat = 100*7/107 ≈ 6.54."""
+    cfg = ReceiptConfig(
+        items=[
+            LineItem(name="สินค้า", quantity=1, unit_price=Decimal("100.00"), has_vat=True),
+        ],
+        vat_style=VatStyle.INCLUSIVE,
+    )
+    r = calculate(cfg)
+    # 100 * 7 / 107 = 6.542056... → 6.54
+    assert r.calculated_items[0].vat_amount == Decimal("6.54")
+    assert r.total_vat == Decimal("6.54")
+    # Inclusive: customer pays the original price (no VAT added)
+    assert r.grand_total == Decimal("100.00")
+
+
+def test_overall_vat_inclusive():
+    """Overall VAT inclusive: 1000 already includes 7% VAT."""
+    cfg = ReceiptConfig(
+        items=[LineItem(name="สินค้า", quantity=1, unit_price=Decimal("1000.00"))],
+        overall_vat=True,
+        overall_vat_rate=Decimal("7"),
+        vat_style=VatStyle.INCLUSIVE,
+    )
+    r = calculate(cfg)
+    # 1000 * 7 / 107 = 65.420560... → 65.42
+    assert r.overall_vat_amount == Decimal("65.42")
+    # Inclusive: grand total stays at 1000 (no VAT added on top)
+    assert r.grand_total == Decimal("1000.00")
+
+
+def test_vat_inclusive_vs_exclusive_comparison():
+    """Compare the two modes for the same 100-baht item."""
+    item = LineItem(name="สินค้า", quantity=1, unit_price=Decimal("100.00"), has_vat=True)
+
+    exclusive = calculate(ReceiptConfig(items=[item], vat_style=VatStyle.EXCLUSIVE))
+    inclusive = calculate(ReceiptConfig(items=[item], vat_style=VatStyle.INCLUSIVE))
+
+    # Exclusive: customer pays 107
+    assert exclusive.grand_total == Decimal("107.00")
+    assert exclusive.total_vat == Decimal("7.00")
+
+    # Inclusive: customer pays 100
+    assert inclusive.grand_total == Decimal("100.00")
+    assert inclusive.total_vat == Decimal("6.54")

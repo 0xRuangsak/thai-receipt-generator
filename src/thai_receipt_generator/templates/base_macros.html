@@ -66,7 +66,9 @@
         {% endif %}
         {% if receipt.total_vat > 0 %}
         <tr>
-            <td>ภาษีมูลค่าเพิ่ม (VAT)
+            <td>ภาษีมูลค่าเพิ่ม (VAT
+                {%- if receipt.config.vat_style.value == 'inclusive' %} รวมในราคา{% endif -%}
+                )
                 {% if receipt.config.overall_vat %}{{ receipt.config.overall_vat_rate }}%{% endif %}
             </td>
             <td class="right">{{ thai_currency(receipt.total_vat) }} บาท</td>

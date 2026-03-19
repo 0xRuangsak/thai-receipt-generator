@@ -11,6 +11,7 @@ from .models import (
     ReceiptConfig,
     ReceiptRow,
     StandaloneDiscount,
+    VatStyle,
 )
 
 TWO_PLACES = Decimal("0.01")
@@ -28,12 +29,23 @@ def _calc_discount(gross: Decimal, discount: Discount) -> Decimal:
     return Decimal("0")
 
 
-def _calc_line_item(item: LineItem) -> CalculatedLineItem:
+def _calc_vat(amount: Decimal, rate: Decimal, style: VatStyle) -> Decimal:
+    """Calculate VAT from an amount.
+
+    Exclusive: vat = amount × rate / 100       (added on top)
+    Inclusive: vat = amount × rate / (100+rate) (extracted from price)
+    """
+    if style == VatStyle.INCLUSIVE:
+        return _round(amount * rate / (Decimal("100") + rate))
+    return _round(amount * rate / Decimal("100"))
+
+
+def _calc_line_item(item: LineItem, vat_style: VatStyle) -> CalculatedLineItem:
     gross = _round(Decimal(str(item.quantity)) * item.unit_price)
     discount_amount = min(_calc_discount(gross, item.discount), gross)
     net = gross - discount_amount
 
-    vat = _round(net * Decimal("7") / Decimal("100")) if item.has_vat else Decimal("0")
+    vat = _calc_vat(net, Decimal("7"), vat_style) if item.has_vat else Decimal("0")
     wht = _round(net * item.wht_rate / Decimal("100")) if item.has_wht else Decimal("0")
 
     return CalculatedLineItem(
@@ -47,7 +59,7 @@ def _calc_line_item(item: LineItem) -> CalculatedLineItem:
 
 
 def calculate(config: ReceiptConfig) -> ReceiptCalculation:
-    calculated_items = [_calc_line_item(item) for item in config.items]
+    calculated_items = [_calc_line_item(item, config.vat_style) for item in config.items]
 
     subtotal = sum((ci.net_amount for ci in calculated_items), Decimal("0"))
     standalone_discount_total = min(
@@ -66,7 +78,7 @@ def calculate(config: ReceiptConfig) -> ReceiptCalculation:
     per_item_wht_total = sum((ci.wht_amount for ci in calculated_items), Decimal("0"))
 
     overall_vat = (
-        _round(after_overall_discount * config.overall_vat_rate / Decimal("100"))
+        _calc_vat(after_overall_discount, config.overall_vat_rate, config.vat_style)
         if config.overall_vat
         else Decimal("0")
     )
@@ -78,7 +90,12 @@ def calculate(config: ReceiptConfig) -> ReceiptCalculation:
 
     total_vat = per_item_vat_total + overall_vat
     total_wht = per_item_wht_total + overall_wht
-    grand_total = after_overall_discount + total_vat - total_wht
+
+    # Exclusive: VAT is added on top; Inclusive: VAT is already in the price
+    if config.vat_style == VatStyle.INCLUSIVE:
+        grand_total = after_overall_discount - total_wht
+    else:
+        grand_total = after_overall_discount + total_vat - total_wht
 
     # Build interleaved row list: items + standalone discounts in display order
     rows: list[ReceiptRow] = []

@@ -13,6 +13,7 @@ from .models import (
     LineItem,
     ReceiptConfig,
     StandaloneDiscount,
+    VatStyle,
 )
 
 TWO_PLACES = Decimal("0.01")
@@ -60,6 +61,9 @@ class CombinatorSpec:
     # VAT/WHT: list of valid (per_item, overall) combos — never both True
     vat_modes: list[TaxMode] = field(default_factory=lambda: [
         TaxMode(False, False), TaxMode(True, False), TaxMode(False, True),
+    ])
+    vat_style_options: list[VatStyle] = field(default_factory=lambda: [
+        VatStyle.EXCLUSIVE, VatStyle.INCLUSIVE,
     ])
     wht_modes: list[TaxMode] = field(default_factory=lambda: [
         TaxMode(False, False), TaxMode(True, False), TaxMode(False, True),
@@ -143,20 +147,26 @@ def _tax_mode_code(mode: TaxMode, prefix: str) -> str:
     return f"{prefix}_off"
 
 
+def _vat_style_code(style: VatStyle) -> str:
+    return "vinc" if style == VatStyle.INCLUSIVE else "vexc"
+
+
 def _variation_id(
     item_count: int,
     profile_combo: tuple[ItemProfile, ...],
     sd_count: int,
     overall_disc: DiscountType,
     vat_mode: TaxMode,
+    vat_style: VatStyle,
     wht_mode: TaxMode,
     template: str,
 ) -> str:
     items_code = "-".join(_profile_code(p) for p in profile_combo)
     od = {"none": "odn", "absolute": "oda", "percentage": "odp"}[overall_disc.value]
     vat_code = _tax_mode_code(vat_mode, "vat")
+    vs_code = _vat_style_code(vat_style)
     wht_code = _tax_mode_code(wht_mode, "wht")
-    return f"i{item_count}_{items_code}_sd{sd_count}_{od}_{vat_code}_{wht_code}_{template}"
+    return f"i{item_count}_{items_code}_sd{sd_count}_{od}_{vat_code}_{vs_code}_{wht_code}_{template}"
 
 
 def generate(spec: CombinatorSpec) -> Iterator[ReceiptConfig]:
@@ -169,22 +179,26 @@ def generate(spec: CombinatorSpec) -> Iterator[ReceiptConfig]:
         # Per-item discount combos (each item gets a discount type independently)
         discount_combos = list(combinations_with_replacement(discount_options, item_count))
 
-        for disc_combo, vat_mode, wht_mode, sd_count, overall_disc, template in product(
+        for disc_combo, vat_mode, vat_style, wht_mode, sd_count, overall_disc, template in product(
             discount_combos,
             spec.vat_modes,
+            spec.vat_style_options,
             spec.wht_modes,
             spec.standalone_discount_counts,
             spec.overall_discount_options,
             spec.template_names,
         ):
+            # Skip vat_style variation when VAT is off — style is irrelevant
+            if not vat_mode.per_item and not vat_mode.overall and vat_style != VatStyle.EXCLUSIVE:
+                continue
             all_combos.append(
-                (item_count, disc_combo, vat_mode, wht_mode, sd_count, overall_disc, template)
+                (item_count, disc_combo, vat_mode, vat_style, wht_mode, sd_count, overall_disc, template)
             )
 
     if spec.max_combinations is not None and len(all_combos) > spec.max_combinations:
         all_combos = rng.sample(all_combos, spec.max_combinations)
 
-    for item_count, disc_combo, vat_mode, wht_mode, sd_count, overall_disc, template in all_combos:
+    for item_count, disc_combo, vat_mode, vat_style, wht_mode, sd_count, overall_disc, template in all_combos:
         # Build item profiles from tax modes + discount combo
         profiles = [
             ItemProfile(
@@ -213,7 +227,7 @@ def generate(spec: CombinatorSpec) -> Iterator[ReceiptConfig]:
 
         vid = _variation_id(
             item_count, tuple(profiles), sd_count, overall_disc,
-            vat_mode, wht_mode, template,
+            vat_mode, vat_style, wht_mode, template,
         )
 
         yield ReceiptConfig(
@@ -222,6 +236,7 @@ def generate(spec: CombinatorSpec) -> Iterator[ReceiptConfig]:
             overall_discount=_make_discount(overall_disc, rng),
             overall_vat=vat_mode.overall,
             overall_vat_rate=Decimal("7"),
+            vat_style=vat_style,
             overall_wht=wht_mode.overall,
             overall_wht_rate=Decimal("3"),
             template_name=template,
@@ -237,14 +252,18 @@ def count_combinations(spec: CombinatorSpec) -> int:
     for item_count in spec.item_counts:
         discount_combos = list(combinations_with_replacement(discount_options, item_count))
 
-        for _dc, _vm, _wm, _sd, _od, _tmpl in product(
+        for _dc, _vm, _vs, _wm, _sd, _od, _tmpl in product(
             discount_combos,
             spec.vat_modes,
+            spec.vat_style_options,
             spec.wht_modes,
             spec.standalone_discount_counts,
             spec.overall_discount_options,
             spec.template_names,
         ):
+            # Skip vat_style variation when VAT is off
+            if not _vm.per_item and not _vm.overall and _vs != VatStyle.EXCLUSIVE:
+                continue
             total += 1
 
     if spec.max_combinations is not None:

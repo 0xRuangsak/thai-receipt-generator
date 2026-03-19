@@ -65,7 +65,8 @@ thai-receipt-gen single examples/simple.json -o output/my_receipt.png
     { "name": "ส่วนลดไก่ทอด", "amount": 20, "position": 1 }
   ],
   "overall_discount": { "type": "absolute", "value": 200 },
-  "overall_vat": true
+  "overall_vat": true,
+  "vat_style": "inclusive"
 }
 ```
 
@@ -96,6 +97,7 @@ thai-receipt-gen single examples/simple.json -o output/my_receipt.png
 | `template` | formal_invoice | Template name |
 | `overall_discount` | none | Discount on entire receipt |
 | `overall_vat` | false | VAT 7% on entire receipt |
+| `vat_style` | exclusive | `"exclusive"` (VAT added on top) or `"inclusive"` (VAT included in price) |
 | `overall_wht` | false | WHT on entire receipt |
 
 See `examples/` for ready-to-use JSON files.
@@ -121,6 +123,7 @@ RECEIPT_SEED=42                    # same seed = same samples every time
 # ── Variation axes (true = always on, false = always off, vary = both) ─
 RECEIPT_PER_ITEM_VAT=vary          # per-item VAT 7%
 RECEIPT_PER_ITEM_WHT=vary          # per-item WHT (services only)
+RECEIPT_VAT_STYLE=vary             # inclusive (VAT in price) / exclusive (VAT on top) / vary
 RECEIPT_PER_ITEM_DISCOUNT=vary     # per-item discount (absolute/percentage)
 RECEIPT_STANDALONE_DISCOUNT=vary   # standalone discount rows
 RECEIPT_OVERALL_DISCOUNT=vary      # overall receipt discount
@@ -142,20 +145,22 @@ RECEIPT_OVERALL_WHT=vary           # overall WHT on entire receipt
 
 Each axis accepts `true`, `false`, or `vary`:
 
-| Axis | Env var | Description |
-| --- | --- | --- |
-| Per-item VAT | `RECEIPT_PER_ITEM_VAT` | VAT 7% on individual items |
-| Per-item WHT | `RECEIPT_PER_ITEM_WHT` | Withholding tax (services only, never products) |
-| Per-item discount | `RECEIPT_PER_ITEM_DISCOUNT` | Discount on individual items (absolute or %) |
-| Standalone discount | `RECEIPT_STANDALONE_DISCOUNT` | Separate discount rows (generic or item-specific) |
-| Overall discount | `RECEIPT_OVERALL_DISCOUNT` | Discount on entire receipt |
-| Overall VAT | `RECEIPT_OVERALL_VAT` | VAT 7% on entire receipt |
-| Overall WHT | `RECEIPT_OVERALL_WHT` | WHT on entire receipt |
+| Axis | Env var | Values | Description |
+| --- | --- | --- | --- |
+| VAT mode | `RECEIPT_VAT` | none/per_item/overall/vary | Where VAT is applied |
+| VAT style | `RECEIPT_VAT_STYLE` | inclusive/exclusive/vary | Inclusive = VAT in price; Exclusive = VAT on top |
+| WHT mode | `RECEIPT_WHT` | none/per_item/overall/vary | Where WHT is applied |
+| Per-item discount | `RECEIPT_PER_ITEM_DISCOUNT` | true/false/vary | Discount on individual items (absolute or %) |
+| Standalone discount | `RECEIPT_STANDALONE_DISCOUNT` | true/false/vary | Separate discount rows (generic or item-specific) |
+| Overall discount | `RECEIPT_OVERALL_DISCOUNT` | true/false/vary | Discount on entire receipt |
 
 **Rules:**
 
 - WHT is only applied to **service** items (ค่าที่ปรึกษา, บริการซ่อมแอร์), never products (ไก่ทอด, กาแฟ)
 - Overall VAT/WHT and per-item VAT/WHT are mutually exclusive (combinator filters automatically)
+- **VAT inclusive**: price already includes VAT — customer pays 100, VAT portion = `100 × 7/107 ≈ 6.54`
+- **VAT exclusive**: VAT added on top — customer pays 107, VAT = `100 × 7/100 = 7`
+- VAT style is only varied when VAT is enabled (skipped when VAT is off to avoid duplicates)
 - Standalone discounts can be **generic** ("ส่วนลด") or **item-specific** ("ส่วนลดไก่ทอด") and appear at varying positions among items
 
 ## Templates

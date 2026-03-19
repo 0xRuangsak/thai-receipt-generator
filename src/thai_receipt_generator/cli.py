@@ -16,6 +16,7 @@ from .models import (
     LineItem,
     ReceiptConfig,
     StandaloneDiscount,
+    VatStyle,
 )
 from .renderer import render_batch
 
@@ -66,6 +67,8 @@ def _config_to_dict(cfg: ReceiptConfig) -> dict:
         data["overall_vat"] = True
         if cfg.overall_vat_rate != Decimal("7"):
             data["overall_vat_rate"] = float(cfg.overall_vat_rate)
+    if cfg.vat_style != VatStyle.EXCLUSIVE:
+        data["vat_style"] = cfg.vat_style.value
     if cfg.overall_wht:
         data["overall_wht"] = True
         if cfg.overall_wht_rate != Decimal("3"):
@@ -111,6 +114,7 @@ def _parse_config(data: dict) -> ReceiptConfig:
         overall_discount=_parse_discount(data.get("overall_discount")),
         overall_vat=data.get("overall_vat", False),
         overall_vat_rate=Decimal(str(data.get("overall_vat_rate", 7))),
+        vat_style=VatStyle(data.get("vat_style", "exclusive")),
         overall_wht=data.get("overall_wht", False),
         overall_wht_rate=Decimal(str(data.get("overall_wht_rate", 3))),
         template_name=data.get("template", "formal_invoice"),
@@ -121,6 +125,7 @@ def _parse_config(data: dict) -> ReceiptConfig:
 
 
 _TAX_CHOICES = click.Choice(["none", "per_item", "overall", "vary"])
+_VAT_STYLE_CHOICES = click.Choice(["inclusive", "exclusive", "vary"])
 _DISCOUNT_CHOICES = click.Choice(["true", "false", "vary"])
 
 
@@ -134,6 +139,14 @@ def _tax_modes(val: str) -> list[TaxMode]:
         return [TaxMode(False, True)]
     # vary: all 3 valid combos (never both True)
     return [TaxMode(False, False), TaxMode(True, False), TaxMode(False, True)]
+
+
+def _vat_styles(val: str) -> list[VatStyle]:
+    if val == "inclusive":
+        return [VatStyle.INCLUSIVE]
+    if val == "exclusive":
+        return [VatStyle.EXCLUSIVE]
+    return [VatStyle.EXCLUSIVE, VatStyle.INCLUSIVE]
 
 
 def _discount_axis(val: str) -> list[DiscountType]:
@@ -160,6 +173,7 @@ def _build_spec(
     max_combos: int | None,
     seed: int,
     vat: str,
+    vat_style: str,
     wht: str,
     per_item_discount: str,
     standalone_discount: str,
@@ -178,6 +192,7 @@ def _build_spec(
     return CombinatorSpec(
         item_counts=[int(x) for x in items.split(",")],
         vat_modes=_tax_modes(vat),
+        vat_style_options=_vat_styles(vat_style),
         wht_modes=_tax_modes(wht),
         per_item_discount_options=_discount_axis(per_item_discount),
         standalone_discount_counts=_standalone_axis(standalone_discount),
@@ -197,6 +212,7 @@ _shared_options = [
     click.option("--max-combos", envvar="RECEIPT_MAX_COMBOS", default=None, type=int, help="Max combinations to sample"),
     click.option("--seed", envvar="RECEIPT_SEED", default=42, type=int, help="Random seed"),
     click.option("--vat", envvar="RECEIPT_VAT", type=_TAX_CHOICES, default="vary", help="VAT mode: none/per_item/overall/vary"),
+    click.option("--vat-style", envvar="RECEIPT_VAT_STYLE", type=_VAT_STYLE_CHOICES, default="vary", help="VAT style: inclusive/exclusive/vary"),
     click.option("--wht", envvar="RECEIPT_WHT", type=_TAX_CHOICES, default="vary", help="WHT mode: none/per_item/overall/vary"),
     click.option("--per-item-discount", envvar="RECEIPT_PER_ITEM_DISCOUNT", type=_DISCOUNT_CHOICES, default="vary", help="Per-item discount: true/false/vary"),
     click.option("--standalone-discount", envvar="RECEIPT_STANDALONE_DISCOUNT", type=_DISCOUNT_CHOICES, default="vary", help="Standalone discount rows: true/false/vary"),
@@ -231,6 +247,7 @@ def gen_json(
     max_combos: int | None,
     seed: int,
     vat: str,
+    vat_style: str,
     wht: str,
     per_item_discount: str,
     standalone_discount: str,
@@ -240,7 +257,7 @@ def gen_json(
     spec = _build_spec(
         items, tmpl_formal_invoice, tmpl_simple_receipt, tmpl_thermal_pos,
         max_combos, seed,
-        vat, wht, per_item_discount,
+        vat, vat_style, wht, per_item_discount,
         standalone_discount, overall_discount,
     )
 
@@ -325,6 +342,7 @@ def list_combos(
     max_combos: int | None,
     seed: int,
     vat: str,
+    vat_style: str,
     wht: str,
     per_item_discount: str,
     standalone_discount: str,
@@ -334,7 +352,7 @@ def list_combos(
     spec = _build_spec(
         items, tmpl_formal_invoice, tmpl_simple_receipt, tmpl_thermal_pos,
         max_combos, seed,
-        vat, wht, per_item_discount,
+        vat, vat_style, wht, per_item_discount,
         standalone_discount, overall_discount,
     )
     total = count_combinations(spec)

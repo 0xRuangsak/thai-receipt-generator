@@ -133,7 +133,7 @@ body {
 {% endif %}
 {% if receipt.total_vat > 0 %}
 <div class="summary-row">
-    <span>VAT</span>
+    <span>VAT{% if receipt.config.vat_style.value == 'inclusive' %} (รวม){% endif %}</span>
     <span>{{ thai_currency(receipt.total_vat) }}</span>
 </div>
 {% endif %}
